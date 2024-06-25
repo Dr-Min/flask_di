@@ -10,7 +10,7 @@ app.config['SECRET_KEY'] = 'your_secret_key'
 socketio = SocketIO(app)
 
 load_dotenv()
-client = OpenAI()
+client = OpenAI(api_key="sk-proj-s6Ct9u7YF5JGUrBZIwX0T3BlbkFJ559Ed6UnCxCcdrxxrgei")
 
 @app.route('/')
 def index():
