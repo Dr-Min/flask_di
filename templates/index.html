@@ -1,32 +1,142 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head>
-  <meta charset="UTF-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cloudtype - Flask</title>
-  <link href="https://cdn.jsdelivr.net/npm/daisyui@2.51.3/dist/full.css" rel="stylesheet" type="text/css" />
-  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2/dist/tailwind.min.css" rel="stylesheet" type="text/css" />
-  <link rel="shortcut icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
-</head>
-<body>
-<div class="hero min-h-screen bg-base-200">
-  <div class="hero-content flex-col lg:flex-row-reverse">
-    <img src="{{ url_for('static', filename='img/flask.webp') }}" class="w-36 rounded-lg md:ml-5 lg:ml-5"  alt="flask"/>
-    <div>
-      <h1 class="text-5xl font-bold">Flask</h1>
-      <p class="py-6">클라우드타입에서 배포한 Flask 어플리케이션입니다.</p>
-      <button type="button" onclick="window.open('https://github.com/cloudtype-examples/java-springboot')" class="btn btn-outline rounded">
-        GitHub
-      </button>
-      <button type="button" onclick="window.open('https://docs.cloudtype.io/')" class="btn btn-outline rounded">
-        Docs
-      </button>
-      <button type="button" onclick="window.open('https://discord.gg/U7HX4BA6hu')" class="btn btn-outline rounded">
-        Discord
-      </button>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>실시간 음성 대화 AI 비서</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background-color: #f0f0f0;
+      }
+      h1 {
+        color: #333;
+        text-align: center;
+      }
+      .control-panel {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+        background-color: #4caf50;
+        color: white;
+        border: none;
+        border-radius: 5px;
+      }
+      button:hover {
+        background-color: #45a049;
+      }
+      #status {
+        text-align: center;
+        font-weight: bold;
+        margin-bottom: 20px;
+      }
+      #conversation {
+        background-color: white;
+        border-radius: 5px;
+        padding: 20px;
+        height: 400px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+      }
+      .user-message,
+      .ai-message {
+        margin-bottom: 10px;
+        padding: 10px;
+        border-radius: 5px;
+        max-width: 70%;
+      }
+      .user-message {
+        background-color: #e6f3ff;
+        margin-left: auto;
+      }
+      .ai-message {
+        background-color: #f0f0f0;
+        margin-right: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>실시간 음성 대화 AI 비서</h1>
+    <div class="control-panel">
+      <button id="startRecord">녹음 시작</button>
+      <button id="stopRecord">녹음 종료</button>
     </div>
-  </div>
-</div>
-</body>
+    <div id="status">대기 중...</div>
+    <div id="conversation"></div>
+
+    <script>
+      const socket = io();
+      let mediaRecorder;
+      let audioChunks = [];
+      let chatHistory = [];
+
+      document.getElementById("startRecord").onclick = startRecording;
+      document.getElementById("stopRecord").onclick = stopRecording;
+
+      function startRecording() {
+        navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+          mediaRecorder = new MediaRecorder(stream);
+          mediaRecorder.ondataavailable = (event) => {
+            audioChunks.push(event.data);
+          };
+          mediaRecorder.onstop = sendAudio;
+          mediaRecorder.start();
+          document.getElementById("status").textContent = "녹음 중...";
+        });
+      }
+
+      function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state !== "inactive") {
+          mediaRecorder.stop();
+          document.getElementById("status").textContent = "녹음 완료";
+        }
+      }
+
+      function sendAudio() {
+        const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          socket.emit("audio_data", reader.result);
+          audioChunks = [];
+        };
+      }
+
+      function updateConversationDisplay() {
+        const conversationDiv = document.getElementById("conversation");
+        conversationDiv.innerHTML = chatHistory
+          .map(
+            (msg) =>
+              `<div class="${msg.role}-message">${
+                msg.role === "user" ? "사용자" : "AI"
+              }: ${msg.text}</div>`
+          )
+          .join("");
+        conversationDiv.scrollTop = conversationDiv.scrollHeight;
+      }
+
+      socket.on("ai_response", function (data) {
+        chatHistory.push({ role: "user", text: data.user_text });
+        chatHistory.push({ role: "ai", text: data.text });
+        updateConversationDisplay();
+
+        // AI 음성 응답 재생
+        const audio = new Audio("data:audio/mp3;base64," + data.audio);
+        audio.play();
+      });
+
+      // 페이지 로드 시 대화 기록 표시
+      updateConversationDisplay();
+    </script>
+  </body>
 </html>
